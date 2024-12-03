@@ -1,0 +1,43 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
+import os
+
+class ImageProcessingApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("DL Image Processing GUI")
+
+        # Set the window size to 60% of the screen size
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        window_width = int(screen_width * 0.6)
+        window_height = int(screen_height * 0.6)
+        self.root.geometry(f"{window_width}x{window_height}")
+
+        # Initialize variables
+        self.uploaded_image_path = None
+        self.processed_image = None
+        self.is_image_saved = True
+
+        # Layout setup
+        self.setup_layout(window_width, window_height)
+
+    def setup_layout(self, window_width, window_height):
+       
+
+    def upload_image(self):
+       
+
+    def display_image(self, label, image_path):
+       
+
+    def select_model(self, model_index):
+        
+    def save_image(self):
+        
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ImageProcessingApp(root)
+    root.mainloop()
