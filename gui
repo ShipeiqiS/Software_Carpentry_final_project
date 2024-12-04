@@ -60,18 +60,44 @@ class ImageProcessingApp:
 
         self.save_button = tk.Button(self.right_frame, text="Save Image", command=self.save_image, bg="#007ACC", fg="white", font=("Arial", 10, "bold"))
         self.save_button.place(relx=0.5, rely=0.85, anchor="center", width=frame_width * 0.6, height=30)
-       
 
     def upload_image(self):
-       
+        file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff")])
+        if file_path:
+            if not self.is_image_saved:
+                if not messagebox.askyesno("Unsaved Image", "You have an unsaved processed image. Do you want to continue?"):
+                    return
+            self.uploaded_image_path = file_path
+            self.display_image(self.image_display_label, file_path)
+            self.is_image_saved = True
 
     def display_image(self, label, image_path):
-       
+        image = Image.open(image_path)
+        image.thumbnail((label.winfo_width() * 10, label.winfo_height() * 10))
+        photo = ImageTk.PhotoImage(image)
+        label.config(image=photo, text="")
+        label.image = photo
 
     def select_model(self, model_index):
-        
+        if not self.uploaded_image_path:
+            messagebox.showerror("Error", "Please upload an image first.")
+            return
+
+        # Placeholder for DL model processing
+        self.processed_image = self.uploaded_image_path  # Replace with your processing code
+        self.display_image(self.processed_image_label, self.processed_image)
+        self.is_image_saved = False
+
     def save_image(self):
-        
+        if not self.processed_image:
+            messagebox.showerror("Error", "No processed image to save.")
+            return
+
+        save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png"), ("JPEG Files", "*.jpg;*.jpeg"), ("All Files", "*.*")])
+        if save_path:
+            image = Image.open(self.processed_image)
+            image.save(save_path)
+            self.is_image_saved = True
 
 if __name__ == "__main__":
     root = tk.Tk()
