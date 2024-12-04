@@ -1,1 +1,1 @@
-# Sofyware_Carpentry_final_project
+# Software_Carpentry_final_project
