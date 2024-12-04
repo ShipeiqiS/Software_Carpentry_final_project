@@ -24,6 +24,42 @@ class ImageProcessingApp:
         self.setup_layout(window_width, window_height)
 
     def setup_layout(self, window_width, window_height):
+        # Calculate dynamic sizes based on window size
+        frame_width = int(window_width * 0.25)
+        frame_height = int(window_height * 0.8)
+        center_frame_width = int(window_width * 0.2)
+
+        # Left panel: Image upload and display
+        self.left_frame = tk.Frame(self.root, bg="#f0f0f0")
+        self.left_frame.place(x=20, y=(window_height - frame_height) // 2, width=frame_width, height=frame_height)
+
+        self.image_display_label = tk.Label(self.left_frame, text="No Image Uploaded", bg="white", relief=tk.SUNKEN)
+        self.image_display_label.place(relx=0.5, rely=0.3, anchor="center", width=frame_width * 0.8, height=frame_height * 0.5)
+
+        self.upload_button = tk.Button(self.left_frame, text="Upload Image", command=self.upload_image, bg="#007ACC", fg="white", font=("Arial", 10, "bold"))
+        self.upload_button.place(relx=0.5, rely=0.85, anchor="center", width=frame_width * 0.6, height=30)
+
+        # Center panel: Model selection buttons
+        self.center_frame = tk.Frame(self.root, bg="#e0e0e0")
+        self.center_frame.place(x=(window_width - center_frame_width) // 2, y=(window_height - frame_height) // 2, width=center_frame_width, height=frame_height)
+
+        self.model_buttons = []
+        button_height = 50
+        button_spacing = 20
+        for i in range(4):
+            button = tk.Button(self.center_frame, text=f"Model {i + 1}", width=20, height=2, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), command=lambda idx=i: self.select_model(idx))
+            button.place(relx=0.5, y=(i * (button_height + button_spacing)) + (frame_height - (4 * (button_height + button_spacing))) / 2, anchor="center", width=center_frame_width * 0.8, height=button_height)
+            self.model_buttons.append(button)
+
+        # Right panel: Display processed image
+        self.right_frame = tk.Frame(self.root, bg="#f0f0f0")
+        self.right_frame.place(x=window_width - frame_width - 20, y=(window_height - frame_height) // 2, width=frame_width, height=frame_height)
+
+        self.processed_image_label = tk.Label(self.right_frame, text="Processed Image Display", bg="white", relief=tk.SUNKEN)
+        self.processed_image_label.place(relx=0.5, rely=0.3, anchor="center", width=frame_width * 0.8, height=frame_height * 0.5)
+
+        self.save_button = tk.Button(self.right_frame, text="Save Image", command=self.save_image, bg="#007ACC", fg="white", font=("Arial", 10, "bold"))
+        self.save_button.place(relx=0.5, rely=0.85, anchor="center", width=frame_width * 0.6, height=30)
        
 
     def upload_image(self):
