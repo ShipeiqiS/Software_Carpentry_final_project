@@ -1,105 +1,131 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk
-import os
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-class ImageProcessingApp:
+class MedicalImageSegmentationApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("DL Image Processing GUI")
+        self.root.title("Medical Image Segmentation Expert")
 
-        # Set the window size to 60% of the screen size
+        # Set the window size
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        window_width = int(screen_width * 0.6)
-        window_height = int(screen_height * 0.6)
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
         self.root.geometry(f"{window_width}x{window_height}")
-
-        # Initialize variables
-        self.uploaded_image_path = None
-        self.processed_image = None
-        self.is_image_saved = True
 
         # Layout setup
         self.setup_layout(window_width, window_height)
 
     def setup_layout(self, window_width, window_height):
-        # Calculate dynamic sizes based on window size
-        frame_width = int(window_width * 0.25)
-        frame_height = int(window_height * 0.8)
-        center_frame_width = int(window_width * 0.2)
+        # Title
+        title_label = tk.Label(self.root, text="Medical Image Segmentation Expert", font=("Arial", 18, "bold"))
+        title_label.pack(pady=10)
 
-        # Left panel: Image upload and display
-        self.left_frame = tk.Frame(self.root, bg="#f0f0f0")
-        self.left_frame.place(x=20, y=(window_height - frame_height) // 2, width=frame_width, height=frame_height)
+        # Batch size and Total epochs
+        control_frame = tk.Frame(self.root)
+        control_frame.pack(pady=10)
 
-        self.image_display_label = tk.Label(self.left_frame, text="No Image Uploaded", bg="white", relief=tk.SUNKEN)
-        self.image_display_label.place(relx=0.5, rely=0.3, anchor="center", width=frame_width * 0.8, height=frame_height * 0.5)
+        tk.Label(control_frame, text="Batch Size:", font=("Arial", 12)).grid(row=0, column=0, padx=5)
+        tk.Button(control_frame, text="-", command=self.decrease_batch_size, font=("Arial", 12)).grid(row=0, column=1, padx=5)
+        self.batch_size_label = tk.Label(control_frame, text="5", width=5, relief=tk.SUNKEN, font=("Arial", 12))
+        self.batch_size_label.grid(row=0, column=2, padx=5)
+        tk.Button(control_frame, text="+", command=self.increase_batch_size, font=("Arial", 12)).grid(row=0, column=3, padx=5)
 
-        self.upload_button = tk.Button(self.left_frame, text="Upload Image", command=self.upload_image, bg="#007ACC", fg="white", font=("Arial", 10, "bold"))
-        self.upload_button.place(relx=0.5, rely=0.85, anchor="center", width=frame_width * 0.6, height=30)
+        tk.Label(control_frame, text="Total Epochs:", font=("Arial", 12)).grid(row=0, column=4, padx=5)
+        tk.Button(control_frame, text="-", command=self.decrease_epochs, font=("Arial", 12)).grid(row=0, column=5, padx=5)
+        self.epochs_label = tk.Label(control_frame, text="100", width=5, relief=tk.SUNKEN, font=("Arial", 12))
+        self.epochs_label.grid(row=0, column=6, padx=5)
+        tk.Button(control_frame, text="+", command=self.increase_epochs, font=("Arial", 12)).grid(row=0, column=7, padx=5)
 
-        # Center panel: Model selection buttons
-        self.center_frame = tk.Frame(self.root, bg="#e0e0e0")
-        self.center_frame.place(x=(window_width - center_frame_width) // 2, y=(window_height - frame_height) // 2, width=center_frame_width, height=frame_height)
+        # Run button
+        run_button = tk.Button(self.root, text="Run", font=("Arial", 14, "bold"), bg="green", fg="white", command=self.run_segmentation)
+        run_button.pack(pady=10)
 
-        self.model_buttons = []
-        button_height = 50
-        button_spacing = 20
+        # Model selection
+        model_frame = tk.Frame(self.root)
+        model_frame.pack(pady=10)
+        tk.Label(model_frame, text="Select Model:", font=("Arial", 12)).grid(row=0, column=0, padx=5)
         for i in range(4):
-            button = tk.Button(self.center_frame, text=f"Model {i + 1}", width=20, height=2, bg="#4CAF50", fg="white", font=("Arial", 12, "bold"), command=lambda idx=i: self.select_model(idx))
-            button.place(relx=0.5, y=(i * (button_height + button_spacing)) + (frame_height - (4 * (button_height + button_spacing))) / 2, anchor="center", width=center_frame_width * 0.8, height=button_height)
-            self.model_buttons.append(button)
+            tk.Button(model_frame, text=f"Model {i + 1}", font=("Arial", 12), command=lambda idx=i: self.select_model(idx)).grid(row=0, column=i + 1, padx=5)
 
-        # Right panel: Display processed image
-        self.right_frame = tk.Frame(self.root, bg="#f0f0f0")
-        self.right_frame.place(x=window_width - frame_width - 20, y=(window_height - frame_height) // 2, width=frame_width, height=frame_height)
+        # Dataset information
+        dataset_frame = tk.Frame(self.root)
+        dataset_frame.pack(pady=10)
 
-        self.processed_image_label = tk.Label(self.right_frame, text="Processed Image Display", bg="white", relief=tk.SUNKEN)
-        self.processed_image_label.place(relx=0.5, rely=0.3, anchor="center", width=frame_width * 0.8, height=frame_height * 0.5)
+        tk.Label(dataset_frame, text="Train Dataset:", font=("Arial", 12)).grid(row=0, column=0, padx=5, sticky="e")
+        tk.Entry(dataset_frame, width=40).grid(row=0, column=1, padx=5)
 
-        self.save_button = tk.Button(self.right_frame, text="Save Image", command=self.save_image, bg="#007ACC", fg="white", font=("Arial", 10, "bold"))
-        self.save_button.place(relx=0.5, rely=0.85, anchor="center", width=frame_width * 0.6, height=30)
+        tk.Label(dataset_frame, text="Train Label:", font=("Arial", 12)).grid(row=1, column=0, padx=5, sticky="e")
+        tk.Entry(dataset_frame, width=40).grid(row=1, column=1, padx=5)
 
-    def upload_image(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.jpg;*.jpeg;*.png;*.bmp;*.tiff")])
-        if file_path:
-            if not self.is_image_saved:
-                if not messagebox.askyesno("Unsaved Image", "You have an unsaved processed image. Do you want to continue?"):
-                    return
-            self.uploaded_image_path = file_path
-            self.display_image(self.image_display_label, file_path)
-            self.is_image_saved = True
+        tk.Label(dataset_frame, text="Test Dataset:", font=("Arial", 12)).grid(row=2, column=0, padx=5, sticky="e")
+        tk.Entry(dataset_frame, width=40).grid(row=2, column=1, padx=5)
 
-    def display_image(self, label, image_path):
-        image = Image.open(image_path)
-        image.thumbnail((label.winfo_width() * 10, label.winfo_height() * 10))
-        photo = ImageTk.PhotoImage(image)
-        label.config(image=photo, text="")
-        label.image = photo
+        tk.Label(dataset_frame, text="Test Label:", font=("Arial", 12)).grid(row=3, column=0, padx=5, sticky="e")
+        tk.Entry(dataset_frame, width=40).grid(row=3, column=1, padx=5)
+
+        # Main layout: Train curve and results
+        main_frame = tk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+        # Epoch train curve display
+        train_curve_frame = tk.Frame(main_frame, relief=tk.SUNKEN, bd=2, bg="white")
+        train_curve_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        tk.Label(train_curve_frame, text="Epoch Train Curve", font=("Arial", 14, "bold"), bg="white").pack(pady=10)
+
+        figure = plt.Figure(figsize=(6, 5), dpi=100)  # Adjusted dimensions
+        ax = figure.add_subplot(111)
+        ax.grid(True)
+        ax.set_title("Training Curve")
+        canvas = FigureCanvasTkAgg(figure, train_curve_frame)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        # Sample results
+        results_frame = tk.Frame(main_frame, relief=tk.SUNKEN, bd=2, bg="white")
+        results_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+        tk.Label(results_frame, text="Sample Results", font=("Arial", 14, "bold"), fg="blue", bg="white").pack(pady=10)
+
+        result_boxes_frame = tk.Frame(results_frame, bg="white")
+        result_boxes_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Adjust to 2x3 layout with larger boxes
+        for i in range(2):
+            for j in range(3):
+                result_box = tk.Frame(result_boxes_frame, width=320, height=220, relief=tk.SUNKEN, bd=2, bg="white")  # Increased dimensions
+                result_box.grid(row=i, column=j, padx=20, pady=20)
+
+        # Configure row/column weights
+        main_frame.grid_columnconfigure(0, weight=3)
+        main_frame.grid_columnconfigure(1, weight=2)
+        main_frame.grid_rowconfigure(0, weight=1)
+
+    def decrease_batch_size(self):
+        current_size = int(self.batch_size_label["text"])
+        if current_size > 1:
+            self.batch_size_label["text"] = str(current_size - 1)
+
+    def increase_batch_size(self):
+        current_size = int(self.batch_size_label["text"])
+        self.batch_size_label["text"] = str(current_size + 1)
+
+    def decrease_epochs(self):
+        current_epochs = int(self.epochs_label["text"])
+        if current_epochs > 1:
+            self.epochs_label["text"] = str(current_epochs - 1)
+
+    def increase_epochs(self):
+        current_epochs = int(self.epochs_label["text"])
+        self.epochs_label["text"] = str(current_epochs + 1)
 
     def select_model(self, model_index):
-        if not self.uploaded_image_path:
-            messagebox.showerror("Error", "Please upload an image first.")
-            return
+        messagebox.showinfo("Model Selection", f"Model {model_index + 1} selected.")
 
-        # Placeholder for DL model processing
-        self.processed_image = self.uploaded_image_path  # Replace with your processing code
-        self.display_image(self.processed_image_label, self.processed_image)
-        self.is_image_saved = False
-
-    def save_image(self):
-        if not self.processed_image:
-            messagebox.showerror("Error", "No processed image to save.")
-            return
-
-        save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Files", "*.png"), ("JPEG Files", "*.jpg;*.jpeg"), ("All Files", "*.*")])
-        if save_path:
-            image = Image.open(self.processed_image)
-            image.save(save_path)
-            self.is_image_saved = True
+    def run_segmentation(self):
+        messagebox.showinfo("Run", "Segmentation process started.")
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = ImageProcessingApp(root)
+    app = MedicalImageSegmentationApp(root)
     root.mainloop()
