@@ -23,7 +23,7 @@ class MedicalImageSegmentationApp:
         title_label = tk.Label(self.root, text="Medical Image Segmentation Expert", font=("Arial", 18, "bold"))
         title_label.pack(pady=10)
 
-        # Batch size and Total epochs
+        # Batch size, Total epochs, and Learning rate
         control_frame = tk.Frame(self.root)
         control_frame.pack(pady=10)
 
@@ -38,6 +38,12 @@ class MedicalImageSegmentationApp:
         self.epochs_label = tk.Label(control_frame, text="100", width=5, relief=tk.SUNKEN, font=("Arial", 12))
         self.epochs_label.grid(row=0, column=6, padx=5)
         tk.Button(control_frame, text="+", command=self.increase_epochs, font=("Arial", 12)).grid(row=0, column=7, padx=5)
+
+        tk.Label(control_frame, text="Learning Rate:", font=("Arial", 12)).grid(row=0, column=8, padx=5)
+        tk.Button(control_frame, text="-", command=self.decrease_learning_rate, font=("Arial", 12)).grid(row=0, column=9, padx=5)
+        self.learning_rate_label = tk.Label(control_frame, text="0.02", width=5, relief=tk.SUNKEN, font=("Arial", 12))
+        self.learning_rate_label.grid(row=0, column=10, padx=5)
+        tk.Button(control_frame, text="+", command=self.increase_learning_rate, font=("Arial", 12)).grid(row=0, column=11, padx=5)
 
         # Run button
         run_button = tk.Button(self.root, text="Run", font=("Arial", 14, "bold"), bg="green", fg="white", command=self.run_segmentation)
@@ -101,6 +107,7 @@ class MedicalImageSegmentationApp:
         main_frame.grid_columnconfigure(1, weight=2)
         main_frame.grid_rowconfigure(0, weight=1)
 
+
     def decrease_batch_size(self):
         current_size = int(self.batch_size_label["text"])
         if current_size > 1:
@@ -124,6 +131,15 @@ class MedicalImageSegmentationApp:
 
     def run_segmentation(self):
         messagebox.showinfo("Run", "Segmentation process started.")
+
+    def decrease_learning_rate(self):
+        current_rate = float(self.learning_rate_label["text"])
+        if current_rate > 0.01:
+            self.learning_rate_label["text"] = f"{current_rate - 0.01:.2f}"
+
+    def increase_learning_rate(self):
+        current_rate = float(self.learning_rate_label["text"])
+        self.learning_rate_label["text"] = f"{current_rate + 0.01:.2f}"
 
 if __name__ == "__main__":
     root = tk.Tk()
