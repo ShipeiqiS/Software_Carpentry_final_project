@@ -1,14 +1,11 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext
 import os
-import cv2
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from PIL import Image, ImageTk
 import threading
-import numpy as np
+
 import subprocess
 import random
 
@@ -324,12 +321,6 @@ class MedicalImageSegmentationApp:
             label.pack()
 
         self.log_message("Test results displayed.")
-
-    def log_message(self, message):
-        self.log_area.configure(state="normal")
-        self.log_area.insert(tk.END, message + "\n")
-        self.log_area.see(tk.END)
-        self.log_area.configure(state="disabled")
 
 
 if __name__ == "__main__":
