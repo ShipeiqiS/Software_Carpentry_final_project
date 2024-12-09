@@ -323,9 +323,11 @@ class MedicalImageSegmentationApp:
         self.test_dataset_entry = tk.Entry(dataset_frame, width=40)
         self.test_dataset_entry.grid(row=2, column=1, padx=5)
 
-        tk.Label(dataset_frame, text="Test Label:", font=("Arial", 12)).grid(row=3, column=0, padx=5, sticky="e")
-        self.test_label_entry = tk.Entry(dataset_frame, width=40)
-        self.test_label_entry.grid(row=3, column=1, padx=5)
+        # Add a new input field for the model file
+        tk.Label(dataset_frame, text="Model File (Optional):", font=("Arial", 12)).grid(row=3, column=0, padx=5,
+                                                                                        sticky="e")
+        self.model_file_entry = tk.Entry(dataset_frame, width=40)
+        self.model_file_entry.grid(row=3, column=1, padx=5)
 
     def add_log_area(self):
         """
@@ -372,33 +374,43 @@ class MedicalImageSegmentationApp:
                 btn.config(bg="SystemButtonFace", fg="black")
 
     def validate_paths(self):
+        """
+        Validates the required paths for training and testing.
+        """
+        # Define paths to check
         paths = [
             ("Train Dataset", self.train_dataset_entry.get()),
             ("Train Label", self.train_label_entry.get()),
             ("Test Dataset", self.test_dataset_entry.get()),
-            ("Test Label", self.test_label_entry.get()),
             ("Save Address", self.save_address_entry.get())
         ]
+
+        # Check if directories exist
         for label, path in paths:
             if not os.path.isdir(path):
                 messagebox.showerror("Error", f"{label} path is invalid: {path}")
                 return False
 
-        # Additional validation: Ensure train and test sets have matching numbers of files
+        # Validate optional model file path if provided
+        model_file_path = self.model_file_entry.get()
+        if model_file_path and not os.path.isfile(model_file_path):
+            messagebox.showerror("Error", f"Model file path is invalid: {model_file_path}")
+            return False
+
+        # Ensure train dataset matches train labels
         train_data_files = os.listdir(self.train_dataset_entry.get())
         train_label_files = os.listdir(self.train_label_entry.get())
         if len(train_data_files) != len(train_label_files):
             messagebox.showerror("Error", "Mismatch between train images and labels.")
             return False
 
+        # Test dataset validation (labels no longer required)
         test_data_files = os.listdir(self.test_dataset_entry.get())
-        test_label_files = os.listdir(self.test_label_entry.get())
-        if len(test_data_files) != len(test_label_files):
-            messagebox.showerror("Error", "Mismatch between test images and labels.")
+        if not test_data_files:
+            messagebox.showerror("Error", "Test dataset is empty.")
             return False
 
         return True
-
 
     def start_training(self):
         if not self.validate_paths():
@@ -411,12 +423,19 @@ class MedicalImageSegmentationApp:
         batch_size = int(self.batch_size_label["text"])
         epochs = int(self.epochs_label["text"])
         learning_rate = float(self.learning_rate_label["text"])
+        model_file_path = self.model_file_entry.get()  # Get model file path
 
-        self.log_message(f"Starting training with {self.selected_model}...")
+        self.log_message(f"Starting process with {self.selected_model}...")
         self.log_message(f"Batch Size: {batch_size}, Epochs: {epochs}, Learning Rate: {learning_rate}")
 
-        # Use threading to prevent GUI freezing
-        threading.Thread(target=self.run_training_process, args=(batch_size, epochs, learning_rate)).start()
+        # Decide whether to train or test based on the model file path
+        if os.path.isfile(model_file_path):  # If a model file is provided
+            self.log_message(f"Using external model file: {model_file_path}")
+            threading.Thread(target=self.run_testing_process, args=(model_file_path,)).start()
+        else:
+            self.log_message("No external model provided, proceeding with training...")
+            threading.Thread(target=self.run_training_and_testing_process,
+                             args=(batch_size, epochs, learning_rate)).start()
 
     def load_data(self, train_data_path, train_label_path, test_data_path, test_label_path):
         """
@@ -556,23 +575,30 @@ class MedicalImageSegmentationApp:
 
         self.canvas.draw()
 
-    def run_testing_process(self, test_loader, save_address):
+    def run_testing_process(self, model_file_path):
         try:
+            # Load the selected model
             model = self.models[self.selected_model]
-            device = torch.device("cpu")  # Explicitly set the device to CPU
-            model = model.to(device)  # Move the model to the CPU
+            device = torch.device("cpu")
+            model = model.to(device)
+
+            # Load the external model parameters
+            model.load_state_dict(torch.load(model_file_path, map_location=device))
             model.eval()
 
-            save_results_path = os.path.join(save_address, "test_results")
+            # Load test dataset
+            test_data_path = self.test_dataset_entry.get()
+            _, test_loader = self.load_data("", "", test_data_path, "")  # Empty paths for unused arguments
+
+            save_results_path = os.path.join(self.save_address_entry.get(), "test_results")
             os.makedirs(save_results_path, exist_ok=True)
 
             self.log_message("Testing started...")
             results = []
 
             with torch.no_grad():
-                for i, (images, labels) in enumerate(test_loader):
+                for i, (images, _) in enumerate(test_loader):  # Test does not require labels
                     images = images.to(device)
-                    labels = labels.squeeze(1)  # Ensure labels are in [B, H, W] format
                     outputs = model(images)
                     predictions = torch.argmax(outputs, dim=1).cpu().numpy()
 
