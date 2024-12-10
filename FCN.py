@@ -150,7 +150,7 @@ for epoch in range(num_epochs):
 
 # Save the model
 current_time = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-torch.save(model, f"model_{current_time}.pth")
+torch.save(model, f"FCN_{current_time}.pth")
 
 
 class NewDataLesionDataset(Dataset):
@@ -185,21 +185,36 @@ new_data_loader = DataLoader(new_data_dataset, batch_size=1)
 
 threshold = 0.5
 
-for inputs, folder_names in new_data_loader:
-    inputs = inputs.to(device)
-    outputs = model(inputs)['out']
+# We'll store results and display them once after the loop
+results = []
+model.eval()
+with torch.no_grad():
+    for inputs, folder_names in new_data_loader:
+        inputs = inputs.to(device)
+        outputs = model(inputs)['out']
 
-    predicted = torch.zeros_like(outputs)
-    predicted[outputs > threshold] = 1.0
-    predicted = predicted[0, :, :, :]
+        predicted = torch.zeros_like(outputs)
+        predicted[outputs > threshold] = 1.0
+        predicted = predicted[0, :, :, :]
 
-    plt.figure()
-    plt.subplot(1, 2, 1)
-    image = inputs[0].cpu().permute(1, 2, 0).numpy()
-    image = (image - image.min()) / (image.max() - image.min())
-    plt.imshow(image, cmap='gray')
-    plt.subplot(1, 2, 2)
-    mask_img = predicted[0].cpu().numpy()
-    plt.imshow(mask_img, cmap='gray')
-    plt.title(folder_names[0])
-    plt.show()
+        # Convert tensors to numpy for plotting later
+        img_np = inputs[0, :, :, :].cpu().numpy().transpose(1, 2, 0)
+        img_np = (img_np - img_np.min()) / (img_np.max() - img_np.min())
+        pred_np = predicted[0, :, :].cpu().numpy()
+
+        results.append((folder_names[0], img_np, pred_np))
+
+# Display all results once
+# Let's say we create a figure with len(results)*2 subplots in a vertical manner
+fig, axes = plt.subplots(len(results), 2, figsize=(10, 5 * len(results)))
+for i, (f_name, img, pred) in enumerate(results):
+    axes[i, 0].imshow(img, cmap='gray')
+    axes[i, 0].set_title(f'{f_name} - Original')
+    axes[i, 0].axis('off')
+
+    axes[i, 1].imshow(pred, cmap='gray')
+    axes[i, 1].set_title(f'{f_name} - Predicted')
+    axes[i, 1].axis('off')
+
+plt.tight_layout()
+plt.show()
