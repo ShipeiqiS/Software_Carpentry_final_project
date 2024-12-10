@@ -102,7 +102,7 @@ Click the `RUN` button to start:
 
 Below is an example screenshot after running inference:
 
-![GUI Example](GUI_example.png)
+![GUI Example](GUI_DeepLabV3.png)
 
 ---
 
