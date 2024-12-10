@@ -8,7 +8,7 @@ import numpy as np
 import random
 import datetime
 import matplotlib
-matplotlib.use("Agg")  # 使用非交互式后端
+matplotlib.use("Agg")
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -24,16 +24,21 @@ random.seed(233)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class LesionDataset(Dataset):
+    """
+    A custom dataset class for loading training/validation images and masks.
+    """
     def __init__(self, root_path, data_list, mode):
         self.root_path = root_path
         self.data_list = data_list
         self.mode = mode
 
+        # Normalization transform
         self.norm = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
+        # Data augmentation
         self.aug = transforms.Compose([
             transforms.RandomVerticalFlip(),
             transforms.RandomHorizontalFlip(),
@@ -46,16 +51,19 @@ class LesionDataset(Dataset):
     def __getitem__(self, idx):
         image_name = self.data_list[idx]
 
+        # Load and normalize the image
         image = PIL.Image.open(
             os.path.join(self.root_path, image_name, f"{image_name}_Dermoscopic_Image", f"{image_name}.bmp"))
         image = self.norm(image)
 
+        # Load and binarize the mask
         mask = PIL.Image.open(
             os.path.join(self.root_path, image_name, f"{image_name}_lesion", f"{image_name}_lesion.bmp"))
         mask = torch.tensor(np.array(mask)).float()
         mask[mask == 0] = 0
         mask[mask > 0] = 1
 
+        # If in training mode, apply augmentations to both image and mask
         if self.mode == 'train':
             data = torch.cat([image, mask.unsqueeze(0)], dim=0)
             data = self.aug(data)
@@ -65,10 +73,14 @@ class LesionDataset(Dataset):
         return image, mask
 
 class NewDataLesionDataset(Dataset):
+    """
+    A dataset class for new test data (no masks). Only applies normalization.
+    """
     def __init__(self, root_path, data_list):
         self.root_path = root_path
         self.data_list = data_list
 
+        # Normalization transform
         self.norm = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -85,6 +97,10 @@ class NewDataLesionDataset(Dataset):
         return image, folder_name
 
 def get_deeplabv3():
+    """
+    Get a pre-trained DeeplabV3 model and modify the classifier head
+    to output a single channel for binary segmentation with Sigmoid.
+    """
     from torchvision.models.segmentation import deeplabv3_resnet50, DeepLabV3_ResNet50_Weights
     model = deeplabv3_resnet50(weights=DeepLabV3_ResNet50_Weights.COCO_WITH_VOC_LABELS_V1)
     model.classifier[-1] = nn.Sequential(
@@ -94,6 +110,10 @@ def get_deeplabv3():
     return model
 
 def get_fcn():
+    """
+    Get a pre-trained FCN model, modify the last layer for binary segmentation,
+    and add a Sigmoid activation.
+    """
     from torchvision.models.segmentation import fcn_resnet50
     model = fcn_resnet50(weights="COCO_WITH_VOC_LABELS_V1")
     model.classifier[4] = nn.Conv2d(512, 1, kernel_size=1)
@@ -106,6 +126,9 @@ def get_fcn():
     return model
 
 class DoubleConv(nn.Module):
+    """
+    A double convolution block
+    """
     def __init__(self, in_channels, out_channels):
         super(DoubleConv, self).__init__()
         self.double_conv = nn.Sequential(
@@ -121,6 +144,9 @@ class DoubleConv(nn.Module):
         return self.double_conv(x)
 
 class Down(nn.Module):
+    """
+    Downsampling block
+    """
     def __init__(self, in_channels, out_channels):
         super(Down, self).__init__()
         self.maxpool_conv = nn.Sequential(
@@ -132,6 +158,9 @@ class Down(nn.Module):
         return self.maxpool_conv(x)
 
 class Up(nn.Module):
+    """
+    Upsampling block
+    """
     def __init__(self, in_channels, out_channels, bilinear=True):
         super(Up, self).__init__()
         if bilinear:
@@ -142,6 +171,7 @@ class Up(nn.Module):
             self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
+        # x1: decoder input, x2: encoder feature map
         x1 = self.up(x1)
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
@@ -151,6 +181,9 @@ class Up(nn.Module):
         return self.conv(x)
 
 class UNet(nn.Module):
+    """
+    A UNet model for segmentation, output 1 channel with Sigmoid.
+    """
     def __init__(self, n_channels=3, n_classes=1, bilinear=True):
         super(UNet, self).__init__()
         self.inc = DoubleConv(n_channels, 64)
@@ -181,6 +214,9 @@ class UNet(nn.Module):
         return {'out': logits}
 
 class UNetPP(nn.Module):
+    """
+    A simplified UNet++ model structure for segmentation (1-channel output + Sigmoid).
+    """
     def __init__(self, n_channels=3, n_classes=1):
         super(UNetPP, self).__init__()
         self.inc = DoubleConv(n_channels, 64)
@@ -231,14 +267,20 @@ class UNetPP(nn.Module):
         return {'out': logits}
 
 class MedicalImageSegmentationGUI(tk.Tk):
+    """
+    A GUI application for medical image segmentation using various models (DeepLabV3, FCN, UNet, UNet++).
+    Allows loading datasets, specifying parameters, optionally loading pretrained weights,
+    training the model, and then displaying the segmentation results of test images.
+    """
     def __init__(self):
         super().__init__()
         self.title("Medical Image Segmentation Expert")
 
+        # Title
         title_label = tk.Label(self, text="Medical Image Segmentation Expert", font=("Helvetica", 16, "bold"))
         title_label.pack(pady=10)
 
-        # 参数输入区域
+        # Parameter input frame
         params_frame = tk.Frame(self)
         params_frame.pack(pady=5)
 
@@ -257,7 +299,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.lr_entry.grid(row=0, column=5, padx=5, pady=5)
         self.lr_entry.insert(0, "0.001")
 
-        # 模型选择区域
+        # Model selection frame
         model_frame = tk.Frame(self)
         model_frame.pack(pady=5)
 
@@ -267,7 +309,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         for i, m in enumerate(models):
             tk.Radiobutton(model_frame, text=m, variable=self.model_var, value=m).grid(row=0, column=i+1, padx=5)
 
-        # 路径输入区域
+        # Path input frame
         path_frame = tk.Frame(self)
         path_frame.pack(pady=5)
 
@@ -287,7 +329,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.pretrained_entry = tk.Entry(path_frame, width=40)
         self.pretrained_entry.grid(row=3, column=1, padx=5, pady=5)
 
-        # RUN按钮
+        # RUN button
         run_button = tk.Button(self, text="RUN", command=self.run_segmentation)
         run_button.pack(pady=10)
 
@@ -295,10 +337,11 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.logs_text = ScrolledText(self, width=80, height=10)
         self.logs_text.pack(pady=5)
 
+        # Bottom frame for training curve and test results
         bottom_frame = tk.Frame(self)
         bottom_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
-        # 左侧显示训练曲线
+        # Left frame: Training Curve
         left_frame = tk.Frame(bottom_frame)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tk.Label(left_frame, text="Training Curve").pack(pady=5)
@@ -312,7 +355,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=left_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        # 右侧显示测试结果图像区域
+        # Right frame: Test Results
         right_frame = tk.Frame(bottom_frame)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tk.Label(right_frame, text="Test Results").pack(pady=5)
@@ -332,11 +375,23 @@ class MedicalImageSegmentationGUI(tk.Tk):
                                 lambda e: self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all")))
 
     def log(self, msg):
+        """
+        Utility function to print logs to the ScrolledText widget.
+        """
         self.logs_text.insert(tk.END, msg + "\n")
         self.logs_text.see(tk.END)
         self.update()
 
     def run_segmentation(self):
+        """
+        Main function to run the segmentation process:
+        1) Get parameters and paths.
+        2) Build model according to user selection.
+        3) Load pretrained weights if provided.
+        4) Train the model if no pretrained weights are given.
+        5) Validate the model and plot accuracy curve.
+        6) Run inference on new test data and display all result images stitched vertically.
+        """
         batch_size = int(self.batch_size_entry.get())
         num_epochs = int(self.epochs_entry.get())
         lr = float(self.lr_entry.get())
@@ -346,6 +401,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         save_address = self.save_path_entry.get().strip()
         pretrained_model_path = self.pretrained_entry.get().strip()
 
+        # Check for valid paths
         if not skin_lesion_dataset_path or not os.path.exists(skin_lesion_dataset_path):
             messagebox.showerror("Error", "Invalid Train Dataset path.")
             return
@@ -366,7 +422,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         else:
             self.log("No Pre-trained weights provided, training from scratch.")
 
-        # 根据模型选择构建模型
+        # Build model according to selection
         if model_choice == 'DeepLabV3':
             model = get_deeplabv3()
             model_name = "DeepLabV3"
@@ -388,6 +444,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         criterion = nn.BCELoss()
         optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.5)
 
+        # Prepare train/valid split
         image_list = [i for i in os.listdir(skin_lesion_dataset_path) if i.startswith("IMD")]
         random.shuffle(image_list)
         n = len(image_list)
@@ -400,7 +457,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=1)
 
-        # 如果有预训练的权重文件，则加载权重（state_dict），而不是直接加载整个模型对象
+        # Load pretrained weights if provided
         if pretrained_model_path and os.path.exists(pretrained_model_path):
             self.log(f"Loading weights from {pretrained_model_path}")
             state_dict = torch.load(pretrained_model_path, map_location=device)
@@ -415,6 +472,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
             sum_step = 0
             accuracy_list = []
 
+            # Train the model
             for epoch in range(num_epochs):
                 # Training phase
                 for inputs, labels in train_loader:
@@ -459,12 +517,11 @@ class MedicalImageSegmentationGUI(tk.Tk):
 
             current_time = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
             model_save_path = f"{model_name}_{current_time}.pth"
-            # 保存state_dict
             torch.save(model.state_dict(), model_save_path)
             self.log(f"Model weights saved to {model_save_path}")
             trained = True
 
-        # 更新曲线图
+        # Update accuracy curve
         if accuracy_list:
             self.ax.clear()
             self.ax.set_title("Accuracy Curve")
@@ -473,7 +530,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
             self.ax.plot(range(len(accuracy_list)), accuracy_list, marker='o')
             self.canvas.draw()
 
-        # 推理并保存结果图像
+        # Inference on new data
         new_data_list = list(range(1, 51))
         new_data_dataset = NewDataLesionDataset(test_dataset_path, new_data_list)
         new_data_loader = DataLoader(new_data_dataset, batch_size=1)
@@ -516,6 +573,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
 
         self.log("All images have been saved successfully.")
 
+        # Combine all test result images vertically and display in GUI
         if len(all_image_paths) > 0:
             images = [Image.open(p) for p in all_image_paths]
             widths, heights = zip(*(im.size for im in images))
