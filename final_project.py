@@ -245,7 +245,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
         tk.Label(params_frame, text="Batch Size:").grid(row=0, column=0, padx=5, pady=5)
         self.batch_size_entry = tk.Entry(params_frame)
         self.batch_size_entry.grid(row=0, column=1, padx=5, pady=5)
-        self.batch_size_entry.insert(0, "4")
+        self.batch_size_entry.insert(0, "5")
 
         tk.Label(params_frame, text="Total Epochs:").grid(row=0, column=2, padx=5, pady=5)
         self.epochs_entry = tk.Entry(params_frame)
@@ -287,16 +287,14 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.pretrained_entry = tk.Entry(path_frame, width=40)
         self.pretrained_entry.grid(row=3, column=1, padx=5, pady=5)
 
-        # 在Logs框的上面添加RUN按钮
+        # RUN按钮
         run_button = tk.Button(self, text="RUN", command=self.run_segmentation)
         run_button.pack(pady=10)
 
-        # Logs输出框
         tk.Label(self, text="Logs:").pack(pady=(10,0))
         self.logs_text = ScrolledText(self, width=80, height=10)
         self.logs_text.pack(pady=5)
 
-        # 底部区域为训练曲线显示和测试结果显示
         bottom_frame = tk.Frame(self)
         bottom_frame.pack(fill=tk.BOTH, expand=True, pady=10)
 
@@ -314,13 +312,11 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=left_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        # 右侧显示测试结果图像区域（修改后）
+        # 右侧显示测试结果图像区域
         right_frame = tk.Frame(bottom_frame)
         right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tk.Label(right_frame, text="Test Results").pack(pady=5)
 
-        # 创建一个Canvas和Scrollbar，用于滚动显示结果长图
-        # 固定Canvas区域大小，这样当图像过长时会需要滚动
         self.results_canvas = tk.Canvas(right_frame, width=400, height=400)
         self.results_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -329,12 +325,9 @@ class MedicalImageSegmentationGUI(tk.Tk):
 
         self.results_canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        # 创建一个Frame放在Canvas中，用于实际放置图像的Label
         self.results_frame = tk.Frame(self.results_canvas)
         self.results_canvas.create_window((0, 0), window=self.results_frame, anchor='nw')
 
-        # 当results_frame大小变化时，更新Canvas的滚动区域
-        # （虽然有这个绑定，但我们后面在插入图片后还会手动更新一次）
         self.results_frame.bind("<Configure>",
                                 lambda e: self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all")))
 
@@ -344,7 +337,6 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.update()
 
     def run_segmentation(self):
-        # 此处与之前的整合逻辑相同
         batch_size = int(self.batch_size_entry.get())
         num_epochs = int(self.epochs_entry.get())
         lr = float(self.lr_entry.get())
@@ -370,9 +362,9 @@ class MedicalImageSegmentationGUI(tk.Tk):
         self.log(f"Test Path: {test_dataset_path}")
         self.log(f"Save Path: {save_address}")
         if pretrained_model_path:
-            self.log(f"Using Pre-trained Model: {pretrained_model_path}")
+            self.log(f"Using Pre-trained Model (weights): {pretrained_model_path}")
         else:
-            self.log("No Pre-trained model provided, training from scratch.")
+            self.log("No Pre-trained weights provided, training from scratch.")
 
         # 根据模型选择构建模型
         if model_choice == 'DeepLabV3':
@@ -408,14 +400,16 @@ class MedicalImageSegmentationGUI(tk.Tk):
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         valid_loader = DataLoader(valid_dataset, batch_size=1)
 
-        # 如果有预训练模型
+        # 如果有预训练的权重文件，则加载权重（state_dict），而不是直接加载整个模型对象
         if pretrained_model_path and os.path.exists(pretrained_model_path):
-            self.log(f"Loading pretrained model from {pretrained_model_path}")
-            model = torch.load(pretrained_model_path, map_location=device)
+            self.log(f"Loading weights from {pretrained_model_path}")
+            state_dict = torch.load(pretrained_model_path, map_location=device)
+            model.load_state_dict(state_dict)
+            self.log("Weights loaded successfully. Skipping training ...")
             trained = True
             accuracy_list = []
         else:
-            self.log("No valid pretrained model provided, starting training...")
+            self.log("No valid pretrained weights provided, starting training...")
             model.train()
             sum_train_loss = 0
             sum_step = 0
@@ -465,8 +459,9 @@ class MedicalImageSegmentationGUI(tk.Tk):
 
             current_time = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
             model_save_path = f"{model_name}_{current_time}.pth"
-            torch.save(model, model_save_path)
-            self.log(f"Model saved to {model_save_path}")
+            # 保存state_dict
+            torch.save(model.state_dict(), model_save_path)
+            self.log(f"Model weights saved to {model_save_path}")
             trained = True
 
         # 更新曲线图
@@ -485,7 +480,7 @@ class MedicalImageSegmentationGUI(tk.Tk):
 
         threshold = 0.5
         model.eval()
-        all_image_paths = []  # 在推理循环前初始化用于存储结果图片路径的列表
+        all_image_paths = []
 
         with torch.no_grad():
             for inputs, folder_names in new_data_loader:
@@ -517,28 +512,19 @@ class MedicalImageSegmentationGUI(tk.Tk):
                 plt.savefig(save_path)
                 plt.close(fig)
 
-                # 将该张图片的保存路径加入列表
                 all_image_paths.append(save_path)
 
         self.log("All images have been saved successfully.")
 
         if len(all_image_paths) > 0:
-            # 不对原图进行缩放，保持原始大小
             images = [Image.open(p) for p in all_image_paths]
-
-            # 计算最大宽度和总高度
             widths, heights = zip(*(im.size for im in images))
             max_width = max(widths)
             total_height = sum(heights)
 
-            # 创建一张空白图，用于垂直拼接所有图片
-            # 背景为白色（可根据需要修改）
             combined_img = Image.new('RGB', (max_width, total_height), (255, 255, 255))
-
             y_offset = 0
             for im in images:
-                # 计算该图水平居中位置的x偏移量
-                # (max_width - im.width)//2 保证图片居中
                 x_offset = (max_width - im.width) // 2
                 combined_img.paste(im, (x_offset, y_offset))
                 y_offset += im.size[1]
@@ -547,12 +533,10 @@ class MedicalImageSegmentationGUI(tk.Tk):
             lbl = tk.Label(self.results_frame, image=self.result_img_tk)
             lbl.pack()
 
-            # 手动更新滚动区域
             self.results_frame.update_idletasks()
             self.results_canvas.config(scrollregion=self.results_canvas.bbox("all"))
         else:
             self.log("No test result image found to display.")
-
 
 if __name__ == "__main__":
     app = MedicalImageSegmentationGUI()
