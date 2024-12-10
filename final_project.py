@@ -25,14 +25,14 @@ class MedicalImageSegmentationApp:
         self.root.grid_rowconfigure(1, weight=0)   # Control + Save Address
         self.root.grid_rowconfigure(2, weight=0)   # Model selection + dataset entries
         self.root.grid_rowconfigure(3, weight=1)   # Logs, curve & results expand
-        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1) 
 
         self.selected_model = None
         self.models = {
             "U-Net": "UNet.py",
             "DeepLabV3": "DeepLabV3.py",
             "FCN": "FCN.py",
-            "UNet++": "UNet++.py"
+            "UNet++": "UNetPlusPlus.py"
         }
 
         self.train_progress = []
@@ -43,38 +43,36 @@ class MedicalImageSegmentationApp:
     def setup_layout(self, window_width, window_height):
         # Title
         title_label = tk.Label(self.root, text="Medical Image Segmentation Expert", font=("Arial", 18, "bold"))
-        # 使用columnspan让标题在整行范围内居中
         title_label.grid(row=0, column=0, pady=10, sticky="n")
 
-        # Create a frame for controls (batch size, epochs, LR, save address)
+        # Control frame (batch size, epochs, LR, save address)
         control_frame = tk.Frame(self.root)
         control_frame.grid(row=1, column=0, pady=10, sticky="ew")
-        control_frame.grid_columnconfigure(0, weight=1)  # 让内部控件可居中
+        control_frame.grid_columnconfigure(0, weight=1)
 
-        # 在control_frame内部再加一个子Frame将控件集中居中
+        # Inner frame to center the controls
         inner_control_frame = tk.Frame(control_frame)
-        inner_control_frame.pack(anchor="center")  # 居中显示
+        inner_control_frame.pack(anchor="center")
 
         self.add_control_buttons(inner_control_frame)
         self.add_save_address(inner_control_frame)
 
-        # Model selection and dataset inputs frame
+        # Model selection and dataset input area
         selection_frame = tk.Frame(self.root)
         selection_frame.grid(row=2, column=0, pady=10, sticky="ew")
-        selection_frame.grid_columnconfigure(0, weight=1)  # 让内容居中
+        selection_frame.grid_columnconfigure(0, weight=1)
 
-        # 在selection_frame内部再加一个子Frame将控件集中居中
+        # Inner frame to center the selection and inputs
         inner_selection_frame = tk.Frame(selection_frame)
         inner_selection_frame.pack(anchor="center")
 
-        # Put model selection and dataset input side by side
         self.add_model_selection(inner_selection_frame)
         self.add_dataset_inputs(inner_selection_frame)
 
         # Main area for logs, training curve and results
         main_area_frame = tk.Frame(self.root)
         main_area_frame.grid(row=3, column=0, sticky="nsew", padx=20, pady=10)
-        main_area_frame.grid_rowconfigure(0, weight=0)  # logs
+        main_area_frame.grid_rowconfigure(0, weight=0)  # logs row
         main_area_frame.grid_rowconfigure(1, weight=1)  # training curve & results
         main_area_frame.grid_columnconfigure(0, weight=1)
 
